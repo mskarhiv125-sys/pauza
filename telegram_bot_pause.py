@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import json
 from dataclasses import dataclass
 from typing import Dict, List
 
@@ -45,7 +46,19 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+ANALYTICS_WEBHOOK = os.getenv("ANALYTICS_WEBHOOK", "")
 
+def send_analytics(event: str, lang: str = "", score: int = "", user_id: int = "", username: str = "") -> None:
+    if not ANALYTICS_WEBHOOK:
+        return
+    try:
+        import requests
+        requests.post(ANALYTICS_WEBHOOK, json={
+            "event": event, "lang": lang, "score": score,
+            "user_id": user_id, "username": username
+        }, timeout=3)
+    except Exception as e:
+        logger.warning(f"Analytics failed: {e}")
 
 @dataclass(frozen=True)
 class Rule:
@@ -271,6 +284,12 @@ async def lang_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("Русский", callback_data="lang:ru"), InlineKeyboardButton("English", callback_data="lang:en")]
     ])
+        send_analytics(
+        event="start",
+        lang=get_lang(context),
+        user_id=update.effective_user.id,
+        username=update.effective_user.username or ""
+    )
     await update.message.reply_text(t(get_lang(context), "language"), reply_markup=keyboard)
 
 
@@ -284,12 +303,19 @@ async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = (update.message.text or "").strip()
-    if not text:
+    if not text:    
         await update.message.reply_text(t(get_lang(context), "empty"))
         return
     lang = context.user_data.get("lang") or detect_lang(text, DEFAULT_LANG)
     context.user_data["lang"] = lang
     reply = format_result(text, lang)
+        send_analytics(
+        event="check",
+        lang=lang,
+        score=analyze(text, lang)["score"],
+        user_id=update.effective_user.id,
+        username=update.effective_user.username or ""
+    )
     await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
 
 
