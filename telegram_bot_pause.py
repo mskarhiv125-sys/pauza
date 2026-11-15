@@ -269,6 +269,12 @@ def get_lang(context: ContextTypes.DEFAULT_TYPE) -> str:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    send_analytics(
+        event="start",
+        lang=get_lang(context),
+        user_id=update.effective_user.id,
+        username=update.effective_user.username or ""
+    )
     await update.message.reply_text(t(get_lang(context), "start"))
 
 
@@ -308,8 +314,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     lang = context.user_data.get("lang") or detect_lang(text, DEFAULT_LANG)
     context.user_data["lang"] = lang
-    reply = format_result(text, lang)
-        send_analytics(
+        reply = format_result(text, lang)
+    send_analytics(
         event="check",
         lang=lang,
         score=analyze(text, lang)["score"],
