@@ -46,6 +46,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+logger.info(f"ANALYTICS_WEBHOOK is set: {bool(ANALYTICS_WEBHOOK)} | length: {len(ANALYTICS_WEBHOOK)}")
+
 ANALYTICS_WEBHOOK = os.getenv("ANALYTICS_WEBHOOK", "")
 
 def send_analytics(event: str, lang: str = "", score: int = "", user_id: int = "", username: str = "") -> None:
