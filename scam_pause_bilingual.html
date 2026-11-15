@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pause — private local helper for checking suspicious messages and calls. / Пауза — приватный локальный помощник для проверки подозрительных сообщений и звонков.">
+  <title>Пауза / Pause — проверка подозрительного сообщения</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #11182c;
+      --text: #e8eefc;
+      --muted: #a8b3ca;
+      --line: rgba(168,179,202,.18);
+      --accent: #67b7ff;
+      --accent-2: #8df0c1;
+      --warning: #ffd166;
+      --danger: #ff7a90;
+      --shadow: 0 18px 60px rgba(0,0,0,.35);
+      --radius: 24px;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at top left,rgba(103,183,255,.16),transparent 34rem),radial-gradient(circle at top right,rgba(141,240,193,.12),transparent 30rem),var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .page { width:min(1180px,calc(100% - 32px)); margin:0 auto; padding:24px 0 48px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:28px; flex-wrap:wrap; }
+    .brand { display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:-.03em; font-size:1.15rem; }
+    .brand-mark { width:38px; height:38px; display:grid; place-items:center; border-radius:14px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#06111f; box-shadow:0 10px 28px rgba(103,183,255,.28); }
+    .top-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .badge,.lang-switch button { border:1px solid var(--line); color:var(--muted); background:rgba(255,255,255,.04); padding:8px 12px; border-radius:999px; font-size:.92rem; }
+    .lang-switch button { cursor:pointer; font:inherit; font-weight:800; }
+    .lang-switch button.active { color:#06111f; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-color:transparent; }
+    .hero { display:grid; grid-template-columns:1.05fr .95fr; gap:22px; align-items:stretch; margin-bottom:22px; }
+    .hero-copy,.hero-note,.card { border:1px solid var(--line); background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.03)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .hero-copy { padding:34px; }
+    .eyebrow { color:var(--accent-2); font-size:.82rem; text-transform:uppercase; letter-spacing:.12em; font-weight:800; margin:0 0 14px; }
+    h1 { font-size:clamp(2.1rem,5vw,4.3rem); line-height:.98; letter-spacing:-.06em; margin:0 0 18px; }
+    .lead { max-width:68ch; color:var(--muted); font-size:1.06rem; margin:0 0 20px; }
+    .lead strong { color:var(--text); }
+    .hero-note { padding:24px; display:flex; flex-direction:column; justify-content:space-between; gap:20px; background:linear-gradient(145deg,rgba(103,183,255,.12),rgba(141,240,193,.08)); }
+    .hero-note h2,.card h2 { margin:0 0 12px; letter-spacing:-.03em; font-size:1.25rem; }
+    .mini-list { display:grid; gap:12px; margin:0; padding:0; list-style:none; }
+    .mini-list li { display:flex; gap:10px; color:var(--muted); }
+    .mini-list li::before { content:"✓"; color:var(--accent-2); font-weight:900; }
+    .app-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr); gap:22px; align-items:start; }
+    .card { padding:24px; }
+    .field-label { display:block; margin:0 0 8px; color:var(--text); font-weight:750; }
+    .field-help { color:var(--muted); font-size:.94rem; margin:0 0 14px; }
+    textarea { width:100%; min-height:240px; resize:vertical; border:1px solid var(--line); border-radius:18px; background:rgba(5,10,25,.55); color:var(--text); padding:16px; font:inherit; outline:none; }
+    textarea:focus,select:focus { border-color:rgba(103,183,255,.75); box-shadow:0 0 0 4px rgba(103,183,255,.12); }
+    .controls { display:grid; grid-template-columns:1fr; gap:14px; margin-top:14px; }
+    select { width:100%; border:1px solid var(--line); border-radius:14px; background:rgba(5,10,25,.55); color:var(--text); padding:12px 14px; font:inherit; outline:none; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+    button { border:0; border-radius:14px; padding:12px 15px; font:inherit; font-weight:800; cursor:pointer; }
+    .primary { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#06111f; }
+    .secondary { background:rgba(255,255,255,.08); color:var(--text); border:1px solid var(--line); }
+    .ghost { background:transparent; color:var(--muted); border:1px solid transparent; }
+    .privacy-note { margin:16px 0 0; color:var(--muted); font-size:.93rem; }
+    .risk-panel { position:sticky; top:18px; }
+    .risk-meter { display:grid; grid-template-columns:92px 1fr; gap:16px; align-items:center; margin-bottom:18px; }
+    .score { width:92px; height:92px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--accent) var(--angle,0deg), rgba(255,255,255,.09) 0); position:relative; }
+    .score::before { content:""; position:absolute; inset:8px; border-radius:50%; background:var(--panel); }
+    .score span { position:relative; font-size:1.7rem; font-weight:900; }
+    .risk-label { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; font-weight:900; border:1px solid var(--line); background:rgba(255,255,255,.05); margin-bottom:10px; }
+    .risk-label.low { color:var(--accent-2); }
+    .risk-label.medium { color:var(--warning); }
+    .risk-label.high { color:var(--danger); }
+    .summary { color:var(--muted); margin:0; }
+    .section { margin-top:22px; }
+    .section h3 { margin:0 0 12px; font-size:1rem; letter-spacing:-.01em; }
+    .findings { display:grid; gap:10px; }
+    .finding { border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:14px; padding:12px 14px; background:rgba(255,255,255,.04); }
+    .finding strong { display:block; margin-bottom:4px; }
+    .finding p { margin:0; color:var(--muted); }
+    .finding ul { margin:10px 0 0; padding-left:20px; color:var(--muted); }
+    .steps,.sources { margin:0; padding-left:20px; color:var(--muted); }
+    .steps li,.sources li { margin:8px 0; }
+    .source-list a { color:var(--accent); }
+    .empty-state { border:1px dashed var(--line); border-radius:18px; padding:18px; color:var(--muted); background:rgba(255,255,255,.03); }
+    .footer { margin-top:22px; color:var(--muted); font-size:.92rem; }
+    @media (max-width:900px) { .hero,.app-grid { grid-template-columns:1fr; } .risk-panel { position:static; } .topbar { align-items:flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar" aria-label="Шапка продукта / Product header">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">⏸</div><span data-i18n="brand">Пауза</span></div>
+      <div class="top-actions">
+        <div class="badge" data-i18n="badge">Приватный локальный анализ · без регистрации</div>
+        <div class="lang-switch" aria-label="Выбор языка / Language switch">
+          <button type="button" id="langRu" class="active">RU</button>
+          <button type="button" id="langEn">EN</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow" data-i18n="eyebrow">Цифровой мини-продукт</p>
+        <h1 data-i18n="title">Сначала пауза. Потом действие.</h1>
+        <p class="lead" data-i18n="lead1"><strong>Пауза</strong> помогает быстро проверить подозрительное сообщение или пересказ звонка: находит тревожные формулировки, объясняет, почему они опасны, и предлагает безопасный следующий шаг.</p>
+        <p class="lead" data-i18n="lead2">Идея продукта основана на простой рекомендации регуляторов: не спешить, ничего не подтверждать и проверять обращение через официальный канал. Приложение не заменяет банк или полицию, но помогает остановиться до ошибочного действия.</p>
+      </div>
+      <aside class="hero-note">
+        <div>
+          <h2 data-i18n="whyTitle">Почему это актуально</h2>
+          <ul class="mini-list" id="whyList"></ul>
+        </div>
+        <div class="empty-state" data-i18n="important"><strong>Важно:</strong> инструмент даёт первичную оценку по признакам. При угрозе деньгам или данным связывайтесь с банком и официальными службами напрямую.</div>
+      </aside>
+    </section>
+
+    <section class="app-grid">
+      <div class="card">
+        <h2 data-i18n="inputTitle">1. Вставьте текст обращения</h2>
+        <label class="field-label" for="messageInput" data-i18n="inputLabel">Текст сообщения или пересказ звонка</label>
+        <p class="field-help" data-i18n="inputHelp">Не вставляйте полные номера карт, коды из SMS, пароли или лишние персональные данные.</p>
+        <textarea id="messageInput" data-i18n-placeholder="textareaPlaceholder" placeholder="Например: «Ваш банк заблокировал перевод. Срочно подтвердите данные карты по ссылке, иначе счёт будет заморожен сегодня»."></textarea>
+
+        <div class="controls">
+          <div>
+            <label class="field-label" for="channelSelect" data-i18n="channelLabel">Канал обращения</label>
+            <select id="channelSelect"></select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="analyzeBtn" type="button" data-i18n="analyze">Проверить</button>
+          <button class="secondary" id="sampleBtn" type="button" data-i18n="sample">Подставить пример</button>
+          <button class="ghost" id="clearBtn" type="button" data-i18n="clear">Очистить</button>
+        </div>
+
+        <p class="privacy-note" data-i18n="privacy">Текст обрабатывается только в вашем браузере на этом устройстве. Эта страница не отправляет введённый текст на сервер.</p>
+      </div>
+
+      <aside class="card risk-panel">
+        <h2 data-i18n="resultTitle">2. Результат</h2>
+        <div class="risk-meter" aria-live="polite">
+          <div class="score" id="scoreCircle" style="--angle:0deg"><span id="scoreValue">0</span></div>
+          <div>
+            <div class="risk-label low" id="riskLabel">Пока нет данных</div>
+            <p class="summary" id="riskSummary">Вставьте текст и нажмите «Проверить» — здесь появится оценка риска и безопасный план действий.</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 data-i18n="signalsTitle">Найденные тревожные признаки</h3>
+          <div class="findings" id="findings"></div>
+        </div>
+
+        <div class="section">
+          <h3 data-i18n="stepsTitle">Что сделать сейчас</h3>
+          <ol class="steps" id="nextSteps"></ol>
+        </div>
+      </aside>
+    </section>
+
+    <section class="card section">
+      <h2 data-i18n="methodTitle">Методология и источники</h2>
+      <p class="summary" data-i18n="methodText">Оценка построена на наборе эвристик: срочность, давление, запрос конфиденциальных данных, обещание выгоды, угрозы, подозрительные ссылки и просьба действовать тайно. Итоговый балл — не вердикт, а сигнал для осторожности.</p>
+      <ul class="sources source-list">
+        <li><a href="https://gasa.org/knowledge-base/reports/global-state-of-scams-2025" target="_blank" rel="noopener noreferrer">Global Anti-Scam Alliance — Global State of Scams 2025</a></li>
+        <li><a href="https://www.ftc.gov/news-events/news/press-releases/2026/06/ftc-data-show-people-reported-losing-3-point-5-billion-imposter-scams-2025" target="_blank" rel="noopener noreferrer">FTC — fraud and imposter scam data for 2025</a></li>
+        <li><a href="https://www.cbr.ru/information_security/pmp" target="_blank" rel="noopener noreferrer">Банк России — общие рекомендации по защите от мошенников</a></li>
+      </ul>
+    </section>
+
+    <footer class="footer" data-i18n="footer">MVP для первичной самопроверки. Не является юридической консультацией, антивирусом или официальным сервисом банка.</footer>
+  </main>
+
+  <script>
+    const translations = {
+      ru: {
+        brand: 'Пауза', badge: 'Приватный локальный анализ · без регистрации', eyebrow: 'Цифровой мини-продукт',
+        title: 'Сначала пауза. Потом действие.',
+        lead1: '<strong>Пауза</strong> помогает быстро проверить подозрительное сообщение или пересказ звонка: находит тревожные формулировки, объясняет, почему они опасны, и предлагает безопасный следующий шаг.',
+        lead2: 'Идея продукта основана на простой рекомендации регуляторов: не спешить, ничего не подтверждать и проверять обращение через официальный канал. Приложение не заменяет банк или полицию, но помогает остановиться до ошибочного действия.',
+        whyTitle: 'Почему это актуально',
+        whyList: ['По GASA, 7 из 10 взрослых в мире сталкивались со scam за последние 12 месяцев.', 'По FTC, только заявленные потери от fraud в США в 2025 году составили около $16 млрд.', 'Самые убедительные атаки давят на срочность, страх и ложную конфиденциальность.'],
+        important: '<strong>Важно:</strong> инструмент даёт первичную оценку по признакам. При угрозе деньгам или данным связывайтесь с банком и официальными службами напрямую.',
+        inputTitle: '1. Вставьте текст обращения', inputLabel: 'Текст сообщения или пересказ звонка', inputHelp: 'Не вставляйте полные номера карт, коды из SMS, пароли или лишние персональные данные.', textareaPlaceholder: 'Например: «Ваш банк заблокировал перевод. Срочно подтвердите данные карты по ссылке, иначе счёт будет заморожен сегодня».',
+        channelLabel: 'Канал обращения', channelOptions: { message: 'SMS / мессенджер / email', call: 'Звонок или голосовое сообщение', social: 'Соцсети или объявление' },
+        analyze: 'Проверить', sample: 'Подставить пример', clear: 'Очистить', privacy: 'Текст обрабатывается только в вашем браузере на этом устройстве. Эта страница не отправляет введённый текст на сервер.',
+        resultTitle: '2. Результат', signalsTitle: 'Найденные тревожные признаки', stepsTitle: 'Что сделать сейчас',
+        methodTitle: 'Методология и источники', methodText: 'Оценка построена на наборе эвристик: срочность, давление, запрос конфиденциальных данных, обещание выгоды, угрозы, подозрительные ссылки и просьба действовать тайно. Итоговый балл — не вердикт, а сигнал для осторожности.',
+        footer: 'MVP для первичной самопроверки. Не является юридической консультацией, антивирусом или официальным сервисом банка.',
+        noData: 'Пока нет данных', emptySummary: 'Вставьте текст и нажмите «Проверить» — здесь появится оценка риска и безопасный план действий.',
+        emptyFindings: 'Пока ничего не найдено. Если сообщение короткое и нейтральное, признаков может быть мало — это не гарантия безопасности.',
+        low: 'Мало явных признаков', medium: 'Повышенная осторожность', high: 'Высокий риск',
+        lowSummary: 'Явных маркеров немного, но это не доказательство безопасности. Если обращение неожиданное, проверьте его через официальный канал.',
+        mediumSummary: 'Есть заметные тревожные признаки. Не переходите по ссылке и не сообщайте данные до независимой проверки.',
+        highSummary: 'Найдено несколько сильных признаков мошенничества. Лучше прекратить контакт и проверить ситуацию через официальный номер банка или организации.',
+        points: 'баллов', sampleText: 'Здравствуйте, это служба безопасности банка. Мы зафиксировали подозрительную операцию по вашему счёту. Срочно подтвердите данные карты и код из SMS по ссылке, иначе счёт будет заблокирован сегодня. Никому не сообщайте о звонке.',
+        defaultSteps: ['Сделайте паузу и не переходите по ссылке из сообщения.', 'Проверьте информацию через официальный номер банка или сайт организации.', 'Если уже сообщили данные, срочно свяжитесь с банком и заблокируйте карту.'],
+        steps: {
+          base: 'Сделайте паузу и ничего не подтверждайте в ответном сообщении или по телефону.',
+          link: 'Не открывайте ссылку из обращения. Откройте официальный сайт или приложение организации самостоятельно.',
+          call: 'Если это был звонок, завершите разговор и перезвоните в организацию по официальному номеру с сайта или с оборотной стороны карты.',
+          verify: 'Проверьте информацию через официальный номер, чат в приложении банка или сайт организации, который вы нашли самостоятельно.',
+          sensitive: 'Не отправляйте код из SMS, CVV, PIN, пароли, паспортные данные и номер карты. Если уже отправили — немедленно свяжитесь с банком.',
+          remote: 'Не устанавливайте приложения по чужой инструкции и не давайте удалённый доступ к устройству.',
+          impersonation: 'Помните: упоминание банка, полиции или госоргана не подтверждает подлинность обращения.',
+          report: 'Сохраните переписку и сообщите о подозрительном контакте в банк и/или в полицию, особенно если уже были операции или переданы данные.',
+          talk: 'Если обращение неожиданное и связано с деньгами, дополнительно обсудите его с близким человеком или коллегой — пауза снижает риск ошибки.'
+        }
+      },
+      en: {
+        brand: 'Pause', badge: 'Private local analysis · no sign-up', eyebrow: 'Digital mini product',
+        title: 'Pause first. Act second.',
+        lead1: '<strong>Pause</strong> helps you quickly inspect a suspicious message or a call summary: it highlights risky phrases, explains why they are dangerous, and suggests the next safe step.',
+        lead2: 'The product follows a simple regulator-style rule: do not rush, do not confirm anything, and verify the request through an official channel. It does not replace a bank or the police, but it helps you stop before a costly mistake.',
+        whyTitle: 'Why it matters',
+        whyList: ['GASA reports that 7 in 10 adults worldwide encountered a scam in the last 12 months.', 'The FTC says reported fraud losses in the U.S. reached about $16 billion in 2025.', 'The most convincing attacks rely on urgency, fear, and false authority.'],
+        important: '<strong>Important:</strong> this tool gives a first-pass risk assessment only. If money or personal data is involved, contact your bank and official services directly.',
+        inputTitle: '1. Paste the message text', inputLabel: 'Message text or call summary', inputHelp: 'Do not paste full card numbers, SMS codes, passwords, or unnecessary personal data.', textareaPlaceholder: 'Example: “Your bank has blocked a transfer. Urgently confirm your card details via the link, or your account will be frozen today.”',
+        channelLabel: 'Contact channel', channelOptions: { message: 'SMS / messenger / email', call: 'Call or voice message', social: 'Social media or classified ad' },
+        analyze: 'Analyze', sample: 'Insert sample', clear: 'Clear', privacy: 'The text is processed only in your browser on this device. This page does not send your input to a server.',
+        resultTitle: '2. Result', signalsTitle: 'Suspicious signals found', stepsTitle: 'What to do now',
+        methodTitle: 'Methodology and sources', methodText: 'The score is based on heuristics: urgency, pressure, requests for confidential data, promises of benefit, threats, suspicious links, and instructions to keep things secret. The result is not a verdict — it is a caution signal.',
+        footer: 'An MVP for first-pass self-checking. It is not legal advice, antivirus software, or an official bank service.',
+        noData: 'No data yet', emptySummary: 'Paste the text and press “Analyze” — the risk score and a safe action plan will appear here.',
+        emptyFindings: 'No warning signs found yet. If the message is short and neutral, there may be few signals — that is not proof of safety.',
+        low: 'Few obvious signs', medium: 'Elevated caution', high: 'High risk',
+        lowSummary: 'There are few obvious markers, but that does not prove the message is safe. If the contact is unexpected, verify it through an official channel.',
+        mediumSummary: 'There are noticeable warning signs. Do not open the link or share data until you verify the request independently.',
+        highSummary: 'Several strong scam indicators were found. It is better to stop the contact and verify the situation through the official bank or organization.',
+        points: 'points', sampleText: 'Hello, this is your bank security department. We detected a suspicious transaction on your account. Urgently confirm your card details and SMS code via the link, or your account will be blocked today. Do not tell anyone about this call.',
+        defaultSteps: ['Pause and do not open the link from the message.', 'Verify the information through the official bank number or organization website.', 'If you already shared data, contact your bank immediately and block the card.'],
+        steps: {
+          base: 'Pause and do not confirm anything in a reply or over the phone.',
+          link: 'Do not open the link in the message. Open the official website or app yourself.',
+          call: 'If this was a call, end it and call the organization back using the official number from its website or the back of your card.',
+          verify: 'Verify the information through an official phone number, the bank app chat, or a website you found yourself.',
+          sensitive: 'Do not send SMS codes, CVV, PINs, passwords, passport details, or card numbers. If you already did, contact your bank immediately.',
+          remote: 'Do not install apps on someone else’s instructions and do not give remote access to your device.',
+          impersonation: 'Remember: mentioning a bank, police, or a government agency does not prove the contact is genuine.',
+          report: 'Save the conversation and report the suspicious contact to your bank and/or the police, especially if money or data was already exposed.',
+          talk: 'If the message is unexpected and involves money, discuss it with a trusted person or colleague — a short pause lowers the chance of a mistake.'
+        }
+      }
+    };
+
+    const ruleSets = {
+      ru: [
+        { id:'urgency', title:'Срочность и давление', weight:18, patterns:[/срочно/giu,/немедленно/giu,/в течение\s+\d+/giu,/сегодня/giu,/прямо сейчас/giu,/последний шанс/giu,/иначе.{0,40}(заблокиру|замороз|закро)/giu], explanation:'Мошенники часто торопят, чтобы человек не успел проверить информацию через официальный канал.' },
+        { id:'sensitive-data', title:'Запрос конфиденциальных данных', weight:24, patterns:[/код\s+из\s+смс/giu,/cvv|cvc|cvc2|cvv2/giu,/пин[-\s]?код/giu,/номер\s+карты/giu,/данные\s+карты/giu,/паспорт(ные)?\s+данные/giu,/парол[ья]/giu,/кодовое\s+слово/giu,/снилс/giu,/инн/giu], explanation:'Банки и госорганы не должны запрашивать полные платёжные данные, SMS-коды или пароли в переписке.' },
+        { id:'threat', title:'Угрозы и запугивание', weight:16, patterns:[/заблокиру/giu,/замороз/giu,/арест/giu,/уголовн/giu,/штраф/giu,/долг/giu,/судебн/giu,/подозрительн.{0,30}(операц|перевод|кредит)/giu], explanation:'Запугивание используется, чтобы подавить критическое мышление и заставить действовать быстро.' },
+        { id:'money-request', title:'Просьба перевести деньги или «обезопасить» счёт', weight:22, patterns:[/перевед(ите|ьте)/giu,/безопасн.{0,20}сч[её]т/giu,/спец(иальный)?\s+сч[её]т/giu,/оплат(ите|ьте)/giu,/верификац.{0,40}(карт|сч[её]т)/giu,/защитн.{0,20}(сч[её]т|перевод)/giu], explanation:'Классический сценарий — убедить человека самостоятельно перевести деньги якобы для защиты.' },
+        { id:'link', title:'Ссылка или просьба перейти на сторонний ресурс', weight:15, patterns:[/https?:\/\//giu,/www\./giu,/перейд(ите|ьте)\s+по\s+ссылке/giu,/срочная\s+ссылка/giu,/подтверд(ите|ьте).{0,30}по\s+ссылке/giu,/короткая\s+ссылка/giu], explanation:'Фишинг часто начинается со ссылки, ведущей на поддельный сайт банка, маркетплейса или госоргана.' },
+        { id:'impersonation', title:'Упоминание банка, службы безопасности или госоргана', weight:12, patterns:[/центробанк|центральн.{0,20}банк/giu,/служба\s+безопасности/giu,/банк/giu,/полиц/giu,/фнс|налогов/giu,/госуслуг/giu,/мвд/giu,/страхов/giu,/служба\s+доставки/giu], explanation:'Злоумышленники часто маскируются под доверенные организации. Само упоминание не доказывает подлинность обращения.' },
+        { id:'too-good', title:'Обещание выплаты, выигрыша или выгоды', weight:14, patterns:[/выигр/giu,/компенсац/giu,/выплат/giu,/премия/giu,/кэшбэк/giu,/доход\s+до/giu,/гарантированн.{0,30}(доход|прибыл)/giu,/инвестиц.{0,30}(выгод|доход)/giu], explanation:'Неожиданная выгода — типичный крючок, после которого просят данные, оплату или переход по ссылке.' },
+        { id:'secrecy', title:'Просьба никому не рассказывать', weight:12, patterns:[/никому\s+не\s+говорите/giu,/держите\s+в\s+тайне/giu,/конфиденциально/giu,/не\s+сообщайте\s+близким/giu,/не\s+отключайтесь/giu], explanation:'Изоляция жертвы помогает мошеннику удержать контроль над ситуацией.' },
+        { id:'remote-control', title:'Просьба установить приложение или дать доступ к устройству', weight:20, patterns:[/установ(ите|ьте)\s+приложение/giu,/anydesk|teamviewer|rustdesk/giu,/удал[её]нн.{0,30}доступ/giu,/продикт/giu,/экран\s+телефона/giu], explanation:'Удалённый доступ и сторонние приложения часто нужны для кражи данных и подтверждения операций.' }
+      ],
+      en: [
+        { id:'urgency', title:'Urgency and pressure', weight:18, patterns:[/urgent/giu,/immediately/giu,/within\s+\d+\s+(hours?|minutes?|days?)/giu,/today/giu,/right now/giu,/last chance/giu,/otherwise.{0,40}(block|suspend|freeze|close)/giu], explanation:'Scammers rush people so they do not have time to verify the request through an official channel.' },
+        { id:'sensitive-data', title:'Request for confidential data', weight:24, patterns:[/sms\s+code/giu,/verification\s+code/giu,/cvv|cvc|pin/giu,/card\s+number/giu,/card\s+details/giu,/passport\s+details/giu,/password/giu,/security\s+word/giu,/ssn/giu,/tax\s+id/giu], explanation:'Banks and public authorities should not ask for full payment details, SMS codes, or passwords in chat.' },
+        { id:'threat', title:'Threats and intimidation', weight:16, patterns:[/blocked/giu,/frozen/giu,/arrest/giu,/criminal/giu,/fine/giu,/debt/giu,/court/giu,/suspicious.{0,30}(transaction|transfer|loan)/giu], explanation:'Fear is used to suppress judgment and push the victim into fast action.' },
+        { id:'money-request', title:'Request to move money or “protect” the account', weight:22, patterns:[/transfer/giu,/safe\s+account/giu,/special\s+account/giu,/pay/giu,/verify.{0,40}(card|account)/giu,/protect.{0,20}(account|funds|money)/giu], explanation:'A classic scam script is to make the victim move money themselves “for protection”.' },
+        { id:'link', title:'Link or request to visit an external page', weight:15, patterns:[/https?:\/\//giu,/www\./giu,/click\s+the\s+link/giu,/open\s+the\s+link/giu,/confirm.{0,30}(via|through)\s+link/giu,/short\s+link/giu], explanation:'Phishing often starts with a link to a fake bank, marketplace, or government site.' },
+        { id:'impersonation', title:'Reference to a bank, security service, or government agency', weight:12, patterns:[/central\s+bank/giu,/security\s+department/giu,/bank/giu,/police/giu,/tax\s+office|irs|hmrc/giu,/government/giu,/customs/giu,/delivery\s+service/giu], explanation:'Attackers often pretend to be trusted institutions. Mentioning an organization does not prove authenticity.' },
+        { id:'too-good', title:'Promise of a payout, prize, or benefit', weight:14, patterns:[/you\s+won|winner/giu,/compensation/giu,/payout/giu,/bonus/giu,/cashback/giu,/guaranteed.{0,30}(income|profit)/giu,/investment.{0,30}(return|profit)/giu], explanation:'Unexpected benefits are a common hook before asking for data, payment, or a link click.' },
+        { id:'secrecy', title:'Request to keep it secret', weight:12, patterns:[/do\s+not\s+tell\s+anyone/giu,/keep\s+it\s+secret/giu,/confidential/giu,/do\s+not\s+share/giu,/stay\s+on\s+the\s+line/giu], explanation:'Isolating the victim helps the scammer stay in control.' },
+        { id:'remote-control', title:'Request to install an app or grant device access', weight:20, patterns:[/install\s+(an\s+)?app/giu,/anydesk|teamviewer|rustdesk/giu,/remote\s+access/giu,/screen\s+sharing/giu,/share\s+your\s+screen/giu], explanation:'Remote access tools are often used to steal data and approve transactions.' }
+      ]
+    };
+
+    const input = document.getElementById('messageInput');
+    const channel = document.getElementById('channelSelect');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const scoreCircle = document.getElementById('scoreCircle');
+    const scoreValue = document.getElementById('scoreValue');
+    const riskLabel = document.getElementById('riskLabel');
+    const riskSummary = document.getElementById('riskSummary');
+    const findingsNode = document.getElementById('findings');
+    const nextStepsNode = document.getElementById('nextSteps');
+    const whyList = document.getElementById('whyList');
+    const langRu = document.getElementById('langRu');
+    const langEn = document.getElementById('langEn');
+    let lang = 'ru';
+
+    function t(key) { return translations[lang][key]; }
+    function escapeHtml(value) { return value.replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
+
+    function applyTranslations() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll('[data-i18n]').forEach(node => { const key = node.getAttribute('data-i18n'); node.innerHTML = t(key); });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(node => { const key = node.getAttribute('data-i18n-placeholder'); node.placeholder = t(key); });
+      whyList.innerHTML = t('whyList').map(item => `<li>${item}</li>`).join('');
+      channel.innerHTML = Object.entries(t('channelOptions')).map(([value,label]) => `<option value="${value}">${label}</option>`).join('');
+      langRu.classList.toggle('active', lang === 'ru');
+      langEn.classList.toggle('active', lang === 'en');
+      analyzeText();
+    }
+
+    function getRiskBand(score) {
+      if (score >= 70) return { key:'high', label:t('high'), summary:t('highSummary') };
+      if (score >= 40) return { key:'medium', label:t('medium'), summary:t('mediumSummary') };
+      return { key:'low', label:t('low'), summary:t('lowSummary') };
+    }
+
+    function buildSteps(score, matches, channelValue) {
+      const steps = [t('steps').base];
+      const ids = new Set(matches.map(match => match.id));
+      if (ids.has('link')) steps.push(t('steps').link);
+      steps.push(channelValue === 'call' ? t('steps').call : t('steps').verify);
+      if (ids.has('sensitive-data')) steps.push(t('steps').sensitive);
+      if (ids.has('remote-control')) steps.push(t('steps').remote);
+      if (ids.has('impersonation')) steps.push(t('steps').impersonation);
+      if (score >= 70) steps.push(t('steps').report);
+      if (steps.length < 5) steps.push(t('steps').talk);
+      return [...new Set(steps)];
+    }
+
+    function renderFindings(matches) {
+      if (!matches.length) { findingsNode.innerHTML = `<div class="empty-state">${t('emptyFindings')}</div>`; return; }
+      findingsNode.innerHTML = matches.map(match => `<article class="finding"><strong>${match.title} · +${match.weight} ${t('points')}</strong><p>${match.explanation}</p><ul>${match.matches.slice(0,3).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`).join('');
+    }
+
+    function analyzeText() {
+      const text = input.value.trim();
+      if (!text) {
+        scoreValue.textContent = '0'; scoreCircle.style.setProperty('--angle','0deg'); riskLabel.className = 'risk-label low'; riskLabel.textContent = t('noData'); riskSummary.textContent = t('emptySummary');
+        findingsNode.innerHTML = `<div class="empty-state">${t('emptyFindings')}</div>`;
+        nextStepsNode.innerHTML = t('defaultSteps').map(step => `<li>${escapeHtml(step)}</li>`).join('');
+        return;
+      }
+      const matchedRules = [];
+      let score = 0;
+      ruleSets[lang].forEach(rule => {
+        const matches = new Set();
+        rule.patterns.forEach(pattern => { const found = text.match(pattern); if (found) found.forEach(item => matches.add(item.trim())); });
+        if (matches.size) { score += rule.weight; matchedRules.push({ id:rule.id, title:rule.title, weight:rule.weight, explanation:rule.explanation, matches:Array.from(matches) }); }
+      });
+      if (/[A-ZА-Я]{4,}/u.test(text.replace(/[https?:\/\/\d\W_]+/gu, ''))) score += 4;
+      if (text.length > 260 && matchedRules.length >= 2) score += 4;
+      score = Math.min(score, 100);
+      const band = getRiskBand(score);
+      scoreValue.textContent = String(score); scoreCircle.style.setProperty('--angle', `${Math.round((score/100)*360)}deg`); riskLabel.className = `risk-label ${band.key}`; riskLabel.textContent = band.label; riskSummary.textContent = band.summary;
+      renderFindings(matchedRules);
+      nextStepsNode.innerHTML = buildSteps(score, matchedRules, channel.value).map(step => `<li>${escapeHtml(step)}</li>`).join('');
+    }
+
+    langRu.addEventListener('click', () => { lang = 'ru'; applyTranslations(); });
+    langEn.addEventListener('click', () => { lang = 'en'; applyTranslations(); });
+    analyzeBtn.addEventListener('click', analyzeText);
+    sampleBtn.addEventListener('click', () => { input.value = t('sampleText'); analyzeText(); });
+    clearBtn.addEventListener('click', () => { input.value=''; analyzeText(); input.focus(); });
+    applyTranslations();
+  </script>
+</body>
+</html>
