@@ -46,24 +46,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-ANALYTICS_WEBHOOK = os.getenv("ANALYTICS_WEBHOOK", "")
-
-logger.info(f"ANALYTICS_WEBHOOK is set: {bool(ANALYTICS_WEBHOOK)} | length: {len(ANALYTICS_WEBHOOK)}")
-
-ANALYTICS_WEBHOOK = os.getenv("ANALYTICS_WEBHOOK", "")
 
 def send_analytics(event: str, lang: str = "", score: int = "", user_id: int = "", username: str = "") -> None:
-    if not ANALYTICS_WEBHOOK:
-        return
-    try:
-        import requests
-        requests.post(ANALYTICS_WEBHOOK, json={
-            "event": event, "lang": lang, "score": score,
-            "user_id": user_id, "username": username
-        }, timeout=3)
-    except Exception as e:
-        logger.warning(f"Analytics failed: {e}")
-
+    logger.info(f"ANALYTICS: event={event} | lang={lang} | score={score} | user={user_id} | username={username}")
 @dataclass(frozen=True)
 class Rule:
     rule_id: str
