@@ -290,12 +290,7 @@ async def lang_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("Русский", callback_data="lang:ru"), InlineKeyboardButton("English", callback_data="lang:en")]
     ])
-        send_analytics(
-        event="start",
-        lang=get_lang(context),
-        user_id=update.effective_user.id,
-        username=update.effective_user.username or ""
-    )
+
     await update.message.reply_text(t(get_lang(context), "language"), reply_markup=keyboard)
 
 
