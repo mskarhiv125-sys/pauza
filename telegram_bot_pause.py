@@ -309,7 +309,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     lang = context.user_data.get("lang") or detect_lang(text, DEFAULT_LANG)
     context.user_data["lang"] = lang
-        reply = format_result(text, lang)
+    reply = format_result(text, lang)
     send_analytics(
         event="check",
         lang=lang,
