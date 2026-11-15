@@ -46,6 +46,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+ANALYTICS_WEBHOOK = os.getenv("ANALYTICS_WEBHOOK", "")
 
 logger.info(f"ANALYTICS_WEBHOOK is set: {bool(ANALYTICS_WEBHOOK)} | length: {len(ANALYTICS_WEBHOOK)}")
 
